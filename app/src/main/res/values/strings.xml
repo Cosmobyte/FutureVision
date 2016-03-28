@@ -10,5 +10,6 @@
     <string name="YearGoals">Year Goals</string>
     <string name="goalHint">Write a goal</string>
     <string name="cancel">Cancel</string>
+    <string name="Delete">Delete All Goals</string>
 
 </resources>

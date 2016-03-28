@@ -1,6 +1,10 @@
 package com.example.android.futurevision;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.ContentValues;
+import android.content.Context;
+import android.content.Intent;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.os.Bundle;
@@ -11,15 +15,23 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
+import android.widget.Toast;
 
-public class MainActivity extends AppCompatActivity {
+import java.util.Calendar;
+
+public class MainActivity extends AppCompatActivity implements day_goals.HideBottomBarDay,month_goals.HideBottomBarMonth,year_goals.HideBottomBarYear{
     ViewPagerAdapter adapterViewPager;
+    Toolbar toolbarBottom;
+
 
 
 
@@ -50,8 +62,10 @@ public class MainActivity extends AppCompatActivity {
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
+
+        setContentView(R.layout.activity_main);
+        toolbarBottom = (Toolbar) findViewById(R.id.toolbar_bottom);
         Toolbar toolbarTop = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbarTop);
 
@@ -65,24 +79,26 @@ public class MainActivity extends AppCompatActivity {
         TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
         tabLayout.setupWithViewPager(viewPager);
         FloatingActionButton button = (FloatingActionButton) findViewById(R.id.fabid);
+        button.setBackgroundTintList(getResources().getColorStateList(R.color.VividBlue));
         final EditText message = (EditText) findViewById(R.id.message);
+           alarmMethod(getApplicationContext());
+
+
+
 
 
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String messageX = message.getText().toString();
-                if (viewPager.getCurrentItem()==0){
+                if (viewPager.getCurrentItem() == 0) {
                     insertDayGoals(messageX);
                     refreshDayGoals();
 
-                }
-                else if(viewPager.getCurrentItem()==1){
+                } else if (viewPager.getCurrentItem() == 1) {
                     insertMonthGoals(messageX);
                     refreshMonthGoals();
-                }
-                else if(viewPager.getCurrentItem()==2)
-                {
+                } else if (viewPager.getCurrentItem() == 2) {
                     insertYearGoals(messageX);
                     refreshYearGoals();
                 }
@@ -93,6 +109,28 @@ public class MainActivity extends AppCompatActivity {
 
 
     }
+
+
+    public void alarmMethod(Context context) {
+        Intent intent = new Intent(MainActivity.this, NotifyService.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(this,
+                0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
+        AlarmManager manager = (AlarmManager)context.getSystemService(Context.ALARM_SERVICE);
+
+
+            Calendar cal = Calendar.getInstance();
+            cal.setTimeInMillis(System.currentTimeMillis());
+            cal.set(Calendar.HOUR_OF_DAY,8);
+            cal.set(Calendar.MINUTE,0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+            manager.setRepeating(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), 24 * 60 * 60 * 1000, pendingIntent);
+        Toast.makeText(MainActivity.this, "Start Alarm", Toast.LENGTH_LONG).show();
+
+        }
+
+
+
     private void insertDayGoals(String goal){
         SQLiteOpenHelper futurevisionDatabaseHelper = new FutureVisionDatabaseHelper(MainActivity.this);
         SQLiteDatabase db = futurevisionDatabaseHelper.getWritableDatabase();
@@ -105,14 +143,14 @@ public class MainActivity extends AppCompatActivity {
         SQLiteDatabase db = futurevisionDatabaseHelper.getWritableDatabase();
         ContentValues goalsValues = new ContentValues();
         goalsValues.put("GOAL",goal);
-        db.insert("MONTH_GOALS",null,goalsValues);
+        db.insert("MONTH_GOALS", null, goalsValues);
     }
     private void insertYearGoals(String goal){
         SQLiteOpenHelper futurevisionDatabaseHelper = new FutureVisionDatabaseHelper(MainActivity.this);
         SQLiteDatabase db = futurevisionDatabaseHelper.getWritableDatabase();
         ContentValues goalsValues = new ContentValues();
         goalsValues.put("GOAL",goal);
-        db.insert("YEAR_GOALS",null,goalsValues);
+        db.insert("YEAR_GOALS", null, goalsValues);
     }
 
 
@@ -131,13 +169,80 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             case R.id.action_settings:
                 return true;
+            case R.id.delete_rows:
+                ViewPager viewPager = (ViewPager) findViewById(R.id.viewpager);
+                SQLiteOpenHelper futurevisionDatabaseHelper = new FutureVisionDatabaseHelper(MainActivity.this);
+                SQLiteDatabase db = futurevisionDatabaseHelper.getWritableDatabase();
+                if(viewPager.getCurrentItem() == 0) {
+                    db.delete("DAY_GOALS", null, null);
+                    refreshDayGoals();
+                }
+                if(viewPager.getCurrentItem()==1) {
+                    db.delete("MONTH_GOALS", null, null);
+                    refreshMonthGoals();
+                }
+                if(viewPager.getCurrentItem()==2) {
+                    db.delete("YEAR_GOALS", null, null);
+                    refreshYearGoals();
+                }
             default:
                 return super.onOptionsItemSelected(item);
         }
     }
+//hiding the bottom bar when the user is scrolling
+    @Override
+    public void hideViews(RecyclerView recyclerView) {
+        recyclerView.setOnScrollListener(new HidingScrollListener() {
+
+            @Override
+            public void onShow() {
+                toolbarBottom.animate().translationY(0).setInterpolator(new DecelerateInterpolator(2));
+            }
+
+            @Override
+            public void onHide() {
+                toolbarBottom.animate().translationY(toolbarBottom.getHeight()).setInterpolator(new AccelerateInterpolator(2));
+            }
+        });
+    }
+
+    @Override
+    public void hideViewsMonth(RecyclerView recyclerView) {
+        recyclerView.setOnScrollListener(new HidingScrollListener() {
+
+            @Override
+            public void onShow() {
+                toolbarBottom.animate().translationY(0).setInterpolator(new DecelerateInterpolator(2));
+            }
+
+            @Override
+            public void onHide() {
+                toolbarBottom.animate().translationY(toolbarBottom.getHeight()).setInterpolator(new AccelerateInterpolator(2));
+            }
+        });
+
+    }
+
+    @Override
+    public void hideViewsYear(RecyclerView recyclerView) {
+        recyclerView.setOnScrollListener(new HidingScrollListener() {
+
+            @Override
+            public void onShow() {
+
+                toolbarBottom.animate().translationY(0).setInterpolator(new DecelerateInterpolator(2));
+            }
+
+            @Override
+            public void onHide() {
+                toolbarBottom.animate().translationY(toolbarBottom.getHeight()).setInterpolator(new AccelerateInterpolator(2));
+            }
+        });
+
+    }
 
 
-        class ViewPagerAdapter extends SmartFragmentStatePagerAdapter{
+    class ViewPagerAdapter extends SmartFragmentStatePagerAdapter{
             private int NUM_ITEMS = 3;
             public ViewPagerAdapter(FragmentManager fragmentManager) {
                 super(fragmentManager);

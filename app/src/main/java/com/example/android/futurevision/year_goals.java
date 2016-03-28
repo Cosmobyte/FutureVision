@@ -2,7 +2,11 @@ package com.example.android.futurevision;
 
 
 import android.annotation.TargetApi;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
@@ -12,6 +16,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
@@ -20,6 +25,8 @@ import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.util.Random;
@@ -31,6 +38,11 @@ public class year_goals extends Fragment implements LoaderManager.LoaderCallback
     private SQLiteDatabase db;
     private Cursor cursor;
     GoalListAdapter adapter;
+    //interface used for passing the recyclerView to the activity
+    public interface HideBottomBarYear {
+        void hideViewsYear(RecyclerView recyclerView);
+    }
+    HideBottomBarYear hideViewsImp;
 
     // newInstance constructor for creating fragment
     public static year_goals newInstance() {
@@ -43,6 +55,11 @@ public class year_goals extends Fragment implements LoaderManager.LoaderCallback
     {
 
     }
+    public void onAttach(Activity activity){
+        super.onAttach(activity);
+        Context context = getActivity();
+        hideViewsImp =(HideBottomBarYear)context;
+    }
     @Override
     public void onCreate(Bundle SavedInstanceState) {
         super.onCreate(SavedInstanceState);
@@ -54,6 +71,7 @@ public class year_goals extends Fragment implements LoaderManager.LoaderCallback
         // Inflate the layout for this fragment
         final RecyclerView recyclerView = (RecyclerView) view.findViewById(R.id.year_goals_recyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        hideViewsImp.hideViewsYear(recyclerView);
         SQLiteOpenHelper futureVisionDatabaseHelper = new FutureVisionDatabaseHelper(getActivity());
         ItemDivider itemDivider = new ItemDivider(getContext(),R.dimen.item_offset);
         recyclerView.addItemDecoration(itemDivider);
@@ -62,6 +80,13 @@ public class year_goals extends Fragment implements LoaderManager.LoaderCallback
         adapter = new GoalListAdapter(getContext(),cursor);
         recyclerView.setAdapter(adapter);
         return view;
+    }
+    public void refreshFragment() {
+        year_goals Year_goals = new year_goals();
+        FragmentTransaction ft = getFragmentManager().beginTransaction();
+        ft.replace(R.id.year_goals_layout, Year_goals);
+        ft.commit();
+
     }
 
     @Override
@@ -81,8 +106,9 @@ public class year_goals extends Fragment implements LoaderManager.LoaderCallback
     }
 
 
-    public class GoalListAdapter extends CursorRecyclerViewAdapter<GoalListViewHolder>  {
-
+    public class GoalListAdapter extends CursorRecyclerViewAdapter<GoalListViewHolder> implements View.OnLongClickListener {
+        public String index;//get the current row index
+        public String currentText;
 
         public GoalListAdapter(Context context,Cursor cursor) {
             super(context,cursor);
@@ -103,7 +129,7 @@ public class year_goals extends Fragment implements LoaderManager.LoaderCallback
 
         @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
         @Override
-        public void onBindViewHolder(GoalListViewHolder holder,Cursor cursor) {
+        public void onBindViewHolder(GoalListViewHolder holder, Cursor cursor) {
             holder.TextCircle.setText(cursor.getString(0));
             holder.TextViewName.setText(cursor.getString(1));
             // taking a random color from the array of colors
@@ -114,10 +140,74 @@ public class year_goals extends Fragment implements LoaderManager.LoaderCallback
             background.setShape(new OvalShape());
             background.getPaint().setColor(randomAndroidColor);
             holder.TextCircle.setBackground(background);
+            holder.itemView.setOnLongClickListener(this);
             cursor.moveToNext();
 
         }
 
+        @Override
+        public boolean onLongClick(View v) {
+            //getting the index and the text of the current goal
+            GoalListViewHolder vh = new GoalListViewHolder(v);
+            currentText = (String) vh.TextViewName.getText();
+            index = (String) vh.TextCircle.getText();
+            AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+            builder.setTitle("EDIT OR DELETE A GOAL");
+            builder.setItems(R.array.dialog_items,
+                    new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            switch (which) {
+                                case 0:
+                                    SQLiteOpenHelper futureVisionDatabaseHelper = new FutureVisionDatabaseHelper(getActivity());
+                                    db = futureVisionDatabaseHelper.getReadableDatabase();
+                                    db.delete("YEAR_GOALS", "_id=?", new String[]{index});
+                                    adapter.notifyDataSetChanged();
+                                    //refresh the fragment
+                                    refreshFragment();
+//                                    db.close();
+                                    break;
+                                case 1:
+                                    AlertDialog.Builder alertDialog = new AlertDialog.Builder(getContext());
+                                    alertDialog.setTitle("EDIT");
+                                    final EditText input = new EditText(getContext());
+                                    input.append(currentText);
+                                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                                            LinearLayout.LayoutParams.MATCH_PARENT,
+                                            LinearLayout.LayoutParams.MATCH_PARENT);
+                                    input.setLayoutParams(lp);
+                                    alertDialog.setView(input);
+                                    // Setting Positive "YES" Button
+                                    alertDialog.setPositiveButton("YES", new DialogInterface.OnClickListener() {
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            SQLiteOpenHelper futureVisionDatabaseHelper = new FutureVisionDatabaseHelper(getActivity());
+                                            db = futureVisionDatabaseHelper.getWritableDatabase();
+                                            ContentValues contentValues = new ContentValues();
+                                            contentValues.put("GOAL", input.getText().toString());
+                                            db.update("YEAR_GOALS", contentValues, "_id=?", new String[]{index});
+                                            //refresh the fragment
+                                            refreshFragment();
+                                        }
+                                    });
+                                    // Setting Negative "NO" Button
+                                    alertDialog.setNegativeButton("NO", new DialogInterface.OnClickListener() {
+                                        public void onClick(DialogInterface dialog,int which){
+                                            dialog.cancel();
+                                        }
+
+                                    });
+                                    alertDialog.create().show(); // display the AlertDialog
+                                    break;
+                            }
+                        }
+                    }
+            );
+            // set the AlertDialog's negative Button
+            builder.setNegativeButton(getString(R.string.cancel), null);
+
+            builder.create().show(); // display the AlertDialog
+            return true;
+        }
     }
 
 

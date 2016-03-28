@@ -13,6 +13,14 @@
         android:orderInCategory="101"
         app:showAsAction="never">
     </item>
+    <item
+            android:id="@+id/delete_rows"
+            android:title="@string/Delete"
+            android:orderInCategory="102"
+            app:showAsAction="never">
+
+        </item>
+
 
 
 
